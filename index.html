@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flappy Cinnamoroll</title>
+    <style>
+        body {
+            margin: 0;
+            background: url('bgawall.jpg') no-repeat center center fixed;
+            background-size: cover;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            border: 2px solid #333;
+            width: 100vw;
+            height: 100vh;
+        }
+        #startScreen, #gameOverScreen, #tutorialScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            display: none; /* Sembunyikan semua layar awal */
+            width: 80%;
+            max-width: 320px;
+        }
+        #tutorialScreen {
+            display: none; /* Pastikan tutorial tidak ditampilkan secara default */
+            background: none;
+            background-size: cover;
+        }
+        #gameOverScreen {
+            background: none; /* Hapus background */
+        }
+        button {
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 0;
+        }
+        #startBtn {
+            background-image: url('icon start.png');
+            background-size: cover;
+            width: 250px;
+            height: 200px;
+        }
+        #tutorialImage {
+            width: 100%;
+            max-width: 300px;
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+        #title {
+            font-size: 32px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        #refreshBtn, #exitBtn {
+            background-size: cover;
+            width: 50px;
+            height: 50px;
+            margin: 10px; /* Tambahkan jarak antara tombol */
+        }
+        #exitBtn {
+            margin-top: 20px; /* Tambahkan jarak antara tombol refresh dan exit */
+        }
+        #groundImage {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%; /* Lebar 100% dari viewport */
+            height: 100px; /* Tinggi 100px */
+            background-image: url('bungaungu(1).jpg'); /* Ganti dengan gambar kustom untuk ground */
+            background-size: cover; /* Pastikan gambar menutupi area */
+            display: none; /* Sembunyikan gambar ground di tampilan awal */
+        }
+    </style>
+</head>
+<body>
+
+<div id="startScreen">
+    <div id="title">Flappy Cinnamoroll</div>
+    <button id="startBtn"></button>
+</div>
+
+<div id="tutorialScreen">
+    <h2>Tutorial</h2>
+    <p>Press Space or Click PgUp to make Cinnamoroll jump!</p>
+    <img id="tutorialImage" src="taptap.png" alt="Tutorial Image">
+    <button id="tutorialBtn">Continue to Game</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+<div id="groundImage"></div> <!-- Gambar ground untuk menutupi pipa -->
+
+<div id="gameOverScreen">
+    <img src="gameover.jpg" alt="Game Over Image" style="width: 100%; max-width: 300px;">
+    <p>Your score: <span id="finalScore">0</span></p>
+    <div id="gameOverButtons">
+        <button id="refreshBtn" title="Play Again" style="background-image: url('icon refresh.png');"></button>
+        <button id="exitBtn" title="Exit" style="background-image: url('icon exit.png');"></button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Load sound effects
+    const jumpSound = new Audio('wing.ogg');
+    const gameOverSound = new Audio('die.ogg');
+
+    // Set canvas to fullscreen
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const startScreen = document.getElementById('startScreen');
+    const startBtn = document.getElementById('startBtn');
+    const tutorialScreen = document.getElementById('tutorialScreen');
+    const tutorialBtn = document.getElementById('tutorialBtn');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScoreEl = document.getElementById('finalScore');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const exitBtn = document.getElementById('exitBtn');
+    const groundImage = document.getElementById('groundImage');
+
+    // Game variables
+    const cinnamoroll = { x: 80, y: window.innerHeight / 2, width: 80, height: 60 };
+    let pipes = [];
+    const pipeWidth = 40;
+    const gap = 150;
+    let pipeSpeed = 1.5;
+    const gravity = 0.3;
+    const jumpStrength = -6;
+    let velocityY = 0;
+    let score = 0;
+    let gameOver = false;
+    let gameStarted = false;
+
+    // Load images
+    const cinnamorollImage = new Image();
+    const backgroundImage = new Image();
+    const pipeTopImage = new Image(); // Gambar pipa atas
+    const pipeBottomImage = new Image(); // Gambar pipa bawah
+
+    cinnamorollImage.src = 'icon cinnamoroll.png';
+    backgroundImage.src = 'backgroundimk.jpeg';
+    pipeTopImage.src = 'pipa-atas.jpg'; // Ganti dengan gambar pipa atas
+    pipeBottomImage.src = 'pipe-red.png'; // Ganti dengan gambar pipa bawah
+
+    let imagesLoaded = 0;
+    const totalImages = 4; // Update total gambar
+
+    function checkImagesLoaded() {
+        imagesLoaded++;
+        if (imagesLoaded === totalImages) {
+            showStartScreen();
+        }
+    }
+
+    cinnamorollImage.onload = checkImagesLoaded;
+    backgroundImage.onload = checkImagesLoaded;
+    pipeTopImage.onload = checkImagesLoaded;
+    pipeBottomImage.onload = checkImagesLoaded;
+
+    function showStartScreen() {
+        if (!gameStarted) {
+            startScreen.style.display = 'block';
+        }
+    }
+
+    function resetGame() {
+        cinnamoroll.y = canvas.height / 2;
+        velocityY = 0;
+        pipes = [];
+        score = 0;
+        gameOver = false;
+        gameStarted = false;
+        gameOverScreen.style.display = 'none';
+        pipeSpeed = 1.5;
+        groundImage.style.display = 'block'; // Tampilkan gambar ground saat game dimulai
+    }
+
+    function spawnPipe() {
+        const maxPipeTopHeight = canvas.height - gap - 150; // Tinggi maksimum pipa atas
+        const topHeight = Math.floor(Math.random() * (maxPipeTopHeight - 50 + 1)) + 50; // Tinggi pipa atas
+        let bottomHeight = canvas.height - topHeight - gap; // Menghitung tinggi pipa bawah
+
+        // Pastikan pipa bawah tidak melewati garis dasar
+        if (bottomHeight > canvas.height - 100) {
+            bottomHeight = canvas.height - 100; // Sesuaikan tinggi pipa bawah
+        }
+
+        // Pastikan pipa bawah tidak terlalu pendek
+        if (bottomHeight < 50) {
+            bottomHeight = 50; // Set batas minimum tinggi pipa bawah
+        }
+
+        pipes.push({
+            x: canvas.width,
+            topY: 0,
+            topHeight: topHeight,
+            bottomY: canvas.height - bottomHeight, // Pipa bawah di bawah
+            bottomHeight: bottomHeight,
+            passed: false,
+        });
+    }
+
+    function drawBackground() {
+        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+    }
+
+    function drawCinnamoroll() {
+        ctx.drawImage(cinnamorollImage, cinnamoroll.x, cinnamoroll.y, cinnamoroll.width, cinnamoroll.height);
+    }
+
+    function drawPipes() {
+        pipes.forEach(pipe => {
+            ctx.drawImage(pipeTopImage, pipe.x, pipe.topY, pipeWidth, pipe.topHeight); // Pipa atas
+            ctx.drawImage(pipeBottomImage, pipe.x, pipe.bottomY, pipeWidth, pipe.bottomHeight); // Pipa bawah
+        });
+    }
+
+    // Hapus fungsi drawGround untuk menghilangkan garis cokelat
+    // function drawGround() {
+    //     ctx.fillStyle = '#654321';
+    //     ctx.fillRect(0, canvas.height - 100, canvas.width, 10);
+    // }
+
+    function checkCollision() {
+        if (cinnamoroll.y + cinnamoroll.height > canvas.height - 100 || cinnamoroll.y < 0) {
+            return true;
+        }
+        for (let pipe of pipes) {
+            if (cinnamoroll.x + cinnamoroll.width > pipe.x && cinnamoroll.x < pipe.x + pipeWidth) {
+                if (cinnamoroll.y < pipe.topHeight || cinnamoroll.y + cinnamoroll.height > pipe.bottomY) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    function update() {
+        if (gameOver) {
+            cancelAnimationFrame(animationFrameId);
+            return;
+        }
+
+        if (gameStarted) {
+            velocityY += gravity;
+            cinnamoroll.y += velocityY;
+
+            for (let i = 0; i < pipes.length; i++) {
+                pipes[i].x -= pipeSpeed;
+
+                if (!pipes[i].passed && pipes[i].x + pipeWidth < cinnamoroll.x) {
+                    pipes[i].passed = true;
+                    score++;
+                    pipeSpeed += 0.1;
+                }
+
+                if (pipes[i].x + pipeWidth < 0) {
+                    pipes.splice(i, 1);
+                    i--;
+                }
+            }
+
+            if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 200) {
+                spawnPipe();
+            }
+        }
+
+        if (checkCollision()) {
+            gameOver = true;
+            finalScoreEl.textContent = score;
+            gameOverSound.play();
+            gameOverScreen.style.display = 'block';
+        }
+
+        draw();
+        animationFrameId = requestAnimationFrame(update);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBackground();
+        drawPipes();
+        // drawGround(); // Pastikan gambar ground digambar
+        drawCinnamoroll();
+
+        if (gameStarted) {
+            ctx.fillStyle = 'white';
+            ctx.font = '40px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(score, canvas.width / 2, 60);
+        }
+    }
+
+    function jump() {
+        if (gameOver) return;
+        if (!gameStarted) {
+            gameStarted = true;
+            tutorialScreen.style.display = 'none'; // Sembunyikan tutorial setelah game dimulai
+        }
+        velocityY = jumpStrength;
+        jumpSound.play();
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+            jump();
+        }
+    });
+
+    canvas.addEventListener('click', jump);
+
+    startBtn.addEventListener('click', () => {
+        startScreen.style.display = 'none';
+        tutorialScreen.style.display = 'block'; // Tampilkan tutorial setelah tombol start diklik
+    });
+
+    tutorialBtn.addEventListener('click', () => {
+        tutorialScreen.style.display = 'none'; // Sembunyikan tutorial setelah game dimulai
+        resetGame();
+        update();
+    });
+
+    refreshBtn.addEventListener('click', () => {
+        gameOverScreen.style.display = 'none';
+        resetGame();
+        update();
+    });
+
+    exitBtn.addEventListener('click', () => {
+        gameOverScreen.style.display = 'none';
+        resetGame(); // Reset game state
+        startScreen.style.display = 'block'; // Kembali ke tampilan awal
+    });
+
+</script>
+</body>
+</html>
